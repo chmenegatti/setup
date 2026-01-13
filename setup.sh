@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
+
+# Trap para capturar erros e mostrar linha
+trap 'echo "Erro na linha $LINENO: $BASH_COMMAND falhou com código $?" >&2; exit 1' ERR
 
 # Cores para output
 RED='\033[0;31m'
@@ -19,12 +22,23 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Função para instalar dependências necessárias
+install_dependencies() {
+    local deps=(unzip git make)
+    for dep in "${deps[@]}"; do
+        if ! command_exists "$dep"; then
+            log_info "Instalando dependência: $dep"
+            sudo pacman -S --needed --noconfirm "$dep"
+        fi
+    done
+}
+
 # Função para instalar pacotes apenas se não existirem
 install_if_missing() {
     local pkg=$1
     if ! pacman -Q "$pkg" >/dev/null 2>&1; then
         log_info "Instalando $pkg..."
-        sudo pacman -S --noconfirm "$pkg"
+        sudo pacman -S --needed --noconfirm "$pkg"
     else
         log_success "$pkg já está instalado"
     fi
@@ -68,7 +82,7 @@ install_zsh() {
         
         # Definir ZSH como shell padrão
         if gum confirm "Deseja definir ZSH como shell padrão?"; then
-            chsh -s $(which zsh)
+            chsh -s $(command -v zsh)
             log_success "ZSH definido como shell padrão"
         fi
     else
@@ -103,7 +117,7 @@ install_asdf() {
     if [ ! -d "$HOME/.asdf" ]; then
         gum style --border normal --padding "1 2" --border-foreground 212 "Instalando ASDF"
         
-        git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.14.1
+        git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.14.1 --depth 1
         
         # Adicionar ao .zshrc se não existir
         if ! grep -q "asdf.sh" ~/.zshrc 2>/dev/null; then
@@ -113,6 +127,231 @@ install_asdf() {
 . "$HOME/.asdf/asdf.sh"
 fpath=(${ASDF_DIR}/completions $fpath)
 autoload -Uz compinit && compinit
+# ============================================
+# Função de Help para Aliases
+# ============================================
+show_aliases_help() {
+    cat << 'HELP'
+╔═════════════════════════════════════════════════════════════════════════╗
+║                          GUIA DE ALIASES - HELP                         ║
+╚═════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📁 EXA - Listagem de Arquivos (substitui ls)                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│ ls          → Lista arquivos com ícones                                 │
+│ ll          → Lista detalhada com info git                              │
+│ la          → Lista incluindo arquivos ocultos                          │
+│ lt          → Visualização em árvore (2 níveis)                         │
+│ l           → Lista longa com tamanhos humanizados                      │
+│ llt         → Lista em árvore detalhada                                 │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📄 BAT - Visualização de Arquivos (substitui cat)                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│ cat         → Cat com syntax highlighting                               │
+│ catn        → Cat sem decorações                                        │
+│ catp        → Cat sem paginação                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🔀 GIT - Comandos Básicos                                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│ g           → git                                                       │
+│ gs          → git status                                                │
+│ ga <file>   → git add <file>                                            │
+│ gaa         → git add . (adiciona tudo)                                 │
+│ gc "msg"    → git commit -m "msg"                                       │
+│ gca         → git commit --amend                                        │
+│ gcane       → git commit --amend --no-edit                              │
+│ gp          → git push                                                  │
+│ gpf         → git push --force-with-lease (push forçado seguro)         │
+│ gpl         → git pull                                                  │
+│ gplr        → git pull --rebase                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🌿 GIT - Branches                                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│ gco <name>  → git checkout <name>                                       │
+│ gcb <name>  → git checkout -b <name> (cria e muda)                      │
+│ gb          → git branch (lista branches)                               │
+│ gba         → git branch -a (lista todas)                               │
+│ gbd <name>  → git branch -d <name> (deleta safe)                        │
+│ gbD <name>  → git branch -D <name> (deleta force)                       │
+│ gm <branch> → git merge <branch>                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📊 GIT - Logs e Diffs                                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│ gl          → git log (gráfico resumido)                                │
+│ gll         → git log (gráfico detalhado e colorido)                    │
+│ gd          → git diff (mudanças não staged)                            │
+│ gds         → git diff --staged (mudanças staged)                       │
+│ gdc         → git diff --cached (mudanças cached)                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 💾 GIT - Stash                                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ gst         → git stash (guarda mudanças)                               │
+│ gstp        → git stash pop (aplica último stash)                       │
+│ gstl        → git stash list (lista stashes)                            │
+│ gstd        → git stash drop (remove stash)                             │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ↩️  GIT - Reset e Clean                                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│ grh         → git reset HEAD (unstage arquivos)                         │
+│ grhh        → git reset --hard HEAD (descarta tudo)                     │
+│ gclean      → git clean -fd (remove não rastreados)                     │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🌐 GIT - Remote                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│ gr          → git remote                                                │
+│ grv         → git remote -v (verbose)                                   │
+│ gra         → git remote add                                            │
+│ grrm        → git remote remove                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🐳 DOCKER - Básico                                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│ d           → docker                                                    │
+│ dc          → docker-compose                                            │
+│ dps         → docker ps (containers rodando)                            │
+│ dpsa        → docker ps -a (todos os containers)                        │
+│ di          → docker images (lista imagens)                             │
+│ dip         → docker image prune -a (remove imagens não usadas)         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📦 DOCKER - Gerenciamento de Containers                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│ drm         → docker rm (remove container)                              │
+│ drma        → docker rm (remove todos)                                  │
+│ dstop       → docker stop (para container)                              │
+│ dstopa      → docker stop (para todos)                                  │
+│ dstart      → docker start                                              │
+│ drestart    → docker restart                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🖼️  DOCKER - Imagens                                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│ drmi        → docker rmi (remove imagem)                                │
+│ drmia       → docker rmi (remove todas)                                 │
+│ dpull       → docker pull                                               │
+│ dbuild      → docker build                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📝 DOCKER - Execução e Logs                                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│ dex         → docker exec -it (executa comando)                         │
+│ dlogs       → docker logs -f (logs em tempo real)                       │
+│ dinspect    → docker inspect                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🧹 DOCKER - Limpeza                                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│ dprune      → docker system prune -af (remove tudo)                     │
+│ dvprune     → docker volume prune -f (remove volumes)                   │
+│ dnprune     → docker network prune -f (remove networks)                 │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🐙 DOCKER COMPOSE                                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│ dcu         → docker-compose up                                         │
+│ dcud        → docker-compose up -d (background)                         │
+│ dcd         → docker-compose down                                       │
+│ dcl         → docker-compose logs -f                                    │
+│ dcps        → docker-compose ps                                         │
+│ dcr         → docker-compose restart                                    │
+│ dcb         → docker-compose build                                      │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📂 SISTEMA - Navegação                                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│ c           → clear                                                     │
+│ ..          → cd ..                                                     │
+│ ...         → cd ../..                                                  │
+│ ....        → cd ../../..                                               │
+│ .....       → cd ../../../..                                            │
+│ ~           → cd ~ (home)                                               │
+│ -           → cd - (volta para anterior)                                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 💻 SISTEMA - Editor                                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│ v           → nvim                                                      │
+│ vim         → nvim                                                      │
+│ vi          → nvim                                                      │
+│ nv          → nvim                                                      │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 📦 PACMAN & YAY - Gerenciamento de Pacotes                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│ pacup       → sudo pacman -Syu (atualiza sistema)                       │
+│ pacupg      → sudo pacman -Syyu (força refresh)                         │
+│ yayup       → yay -Syu (atualiza com AUR)                               │
+│ pacin       → sudo pacman -S (instala pacote)                           │
+│ yayin       → yay -S (instala com AUR)                                  │
+│ pacrm       → sudo pacman -Rns (remove + deps)                          │
+│ pacrmo      → Remove pacotes órfãos                                     │
+│ pacsearch   → pacman -Ss (busca pacote)                                 │
+│ pacinfo     → pacman -Si (info do pacote)                               │
+│ ylock       → Remove lock do pacman                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🌐 UTILITÁRIOS - Rede                                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│ myip        → Mostra IP público                                         │
+│ localip     → Mostra IPs locais                                         │
+│ ports       → Mostra portas abertas                                     │
+│ listening   → Mostra portas em listening                                │
+│ ping        → ping -c 5                                                 │
+│ fastping    → Ping rápido (100 pacotes)                                 │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 💾 UTILITÁRIOS - Sistema                                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│ df          → Espaço em disco humanizado                                │
+│ du          → Uso de disco humanizado                                   │
+│ free        → Memória humanizada                                        │
+│ ps          → Lista processos                                           │
+│ psg         → Busca processos                                           │
+│ h           → history                                                   │
+│ hg          → Busca no histórico                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🔧 OUTROS                                                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│ lg          → lazygit (interface Git)                                   │
+│ reload      → source ~/.zshrc                                           │
+│ zshconfig   → nvim ~/.zshrc                                             │
+│ aliases     → Mostra este help                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+💡 Dica: Use TAB para autocompletar comandos e arquivos!
+📖 Para mais detalhes de um comando: man <comando> ou <comando> --help
+
+HELP
+}
+
 EOF
         fi
         
@@ -197,19 +436,22 @@ install_asdf_plugins() {
 }
 
 # ============================================
-# 7. INSTALAÇÃO DE APLICATIVOS
+# 7. INSTALAÇÃO DE APLICATIVOS (CORRIGIDO)
 # ============================================
 install_applications() {
     gum style --border normal --padding "1 2" --border-foreground 212 "Instalando aplicativos"
     
-    # Aplicativos do repositório oficial
-    local apps=(exa bat tilix)
+    # Aplicativos do repositório oficial (pacman)
+    # Removi o tilix daqui
+    local apps=(exa bat)
+    
     for app in "${apps[@]}"; do
         install_if_missing "$app"
     done
     
-    # Aplicativos do AUR
-    local aur_apps=(insomnia-bin dbeaver google-chrome visual-studio-code-bin)
+    # Aplicativos do AUR (yay)
+    # Adicionei o tilix aqui para forçar o uso do yay
+    local aur_apps=(insomnia-bin dbeaver google-chrome visual-studio-code-bin tilix)
     
     for app in "${aur_apps[@]}"; do
         if ! yay -Q "$app" >/dev/null 2>&1; then
@@ -236,7 +478,7 @@ install_docker() {
         # Adicionar usuário ao grupo docker
         if ! groups | grep -q docker; then
             sudo usermod -aG docker $USER
-            log_warning "Você foi adicionado ao grupo docker. Faça logout e login novamente."
+            log_warning "Você foi adicionado ao grupo docker. Execute 'newgrp docker' ou faça logout/login para aplicar."
         fi
         
         # Habilitar e iniciar serviço
@@ -264,7 +506,7 @@ install_lazyvim() {
         fi
         
         # Instalar LazyVim
-        git clone https://github.com/LazyVim/starter ~/.config/nvim
+        git clone https://github.com/LazyVim/starter ~/.config/nvim --depth 1
         rm -rf ~/.config/nvim/.git
         
         log_success "LazyVim instalado! Execute 'nvim' para finalizar a configuração."
@@ -278,7 +520,7 @@ install_zinit() {
     if [ ! -d "$HOME/.local/share/zinit" ]; then
         gum style --border normal --padding "1 2" --border-foreground 212 "Instalando Zinit"
         
-        bash -c "$(curl --fail --show-error --silent --location https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
+        git clone https://github.com/zdharma-continuum/zinit.git ~/.local/share/zinit/bin --depth 1
         
         log_success "Zinit instalado!"
     else
@@ -321,8 +563,8 @@ install_ohmyposh() {
     if ! command_exists oh-my-posh; then
         gum style --border normal --padding "1 2" --border-foreground 212 "Instalando Oh My Posh"
         
-        # Instalar Oh My Posh
-        curl -s https://ohmyposh.dev/install.sh | bash -s
+        # Instalar Oh My Posh via AUR
+        yay -S --noconfirm oh-my-posh
         
         log_success "Oh My Posh instalado!"
     else
@@ -382,6 +624,11 @@ EOF
 setup_aliases() {
     gum style --border normal --padding "1 2" --border-foreground 212 "Configurando aliases"
     
+    # Backup do .zshrc antes de modificar
+    if [ -f ~/.zshrc ]; then
+        cp ~/.zshrc ~/.zshrc.bak.$(date +%Y%m%d_%H%M%S)
+    fi
+    
     # Criar arquivo de aliases se não existir
     if ! grep -q "# Custom Aliases" ~/.zshrc 2>/dev/null; then
         cat >> ~/.zshrc << 'EOF'
@@ -390,78 +637,190 @@ setup_aliases() {
 # Custom Aliases
 # ============================================
 
-# EXA (substituto do ls)
-alias ls='exa --icons'
-alias ll='exa -lah --icons --git'
-alias la='exa -a --icons'
-alias lt='exa --tree --level=2 --icons'
-alias l='exa -lh --icons'
+# EXA (substituto do ls com ícones e cores)
+alias ls='exa --icons'                          # Lista arquivos com ícones
+alias ll='exa -lah --icons --git'               # Lista detalhada com informações git
+alias la='exa -a --icons'                       # Lista incluindo arquivos ocultos
+alias lt='exa --tree --level=2 --icons'         # Visualização em árvore (2 níveis)
+alias l='exa -lh --icons'                       # Lista longa com tamanhos humanizados
+alias llt='exa -lah --icons --git --tree'       # Lista em árvore detalhada
 
-# BAT (substituto do cat)
-alias cat='bat'
-alias catn='bat --style=plain'
-alias catp='bat --style=plain --paging=never'
+# BAT (substituto do cat com syntax highlighting)
+alias cat='bat'                                 # Cat com syntax highlighting
+alias catn='bat --style=plain'                  # Cat sem decorações
+alias catp='bat --style=plain --paging=never'   # Cat sem paginação
 
-# Git
-alias g='git'
-alias gs='git status'
-alias ga='git add'
-alias gaa='git add .'
-alias gc='git commit -m'
-alias gca='git commit --amend'
-alias gp='git push'
-alias gpl='git pull'
-alias gco='git checkout'
-alias gcb='git checkout -b'
-alias gb='git branch'
-alias gbd='git branch -d'
-alias gl='git log --oneline --graph --decorate'
-alias gd='git diff'
-alias gds='git diff --staged'
-alias gst='git stash'
-alias gstp='git stash pop'
+# Git - Comandos básicos
+alias g='git'                                   # Atalho principal do git
+alias gs='git status'                           # Status do repositório
+alias ga='git add'                              # Adiciona arquivo específico
+alias gaa='git add .'                           # Adiciona todos os arquivos
+alias gc='git commit -m'                        # Commit com mensagem
+alias gca='git commit --amend'                  # Amend do último commit
+alias gcane='git commit --amend --no-edit'      # Amend sem editar mensagem
+alias gp='git push'                             # Push para remote
+alias gpf='git push --force-with-lease'         # Push forçado seguro
+alias gpl='git pull'                            # Pull do remote
+alias gplr='git pull --rebase'                  # Pull com rebase
 
-# Docker
-alias d='docker'
-alias dc='docker-compose'
-alias dps='docker ps'
-alias dpsa='docker ps -a'
-alias di='docker images'
-alias drm='docker rm'
-alias drmi='docker rmi'
-alias dex='docker exec -it'
-alias dlogs='docker logs -f'
-alias dprune='docker system prune -af'
-alias dstop='docker stop $(docker ps -q)'
+# Git - Branches
+alias gco='git checkout'                        # Checkout de branch
+alias gcb='git checkout -b'                     # Criar e checkout nova branch
+alias gb='git branch'                           # Lista branches
+alias gba='git branch -a'                       # Lista todas as branches
+alias gbd='git branch -d'                       # Deleta branch (safe)
+alias gbD='git branch -D'                       # Deleta branch (force)
+alias gm='git merge'                            # Merge de branches
 
-# Sistema
-alias c='clear'
-alias ..='cd ..'
-alias ...='cd ../..'
-alias ....='cd ../../..'
-alias ~='cd ~'
-alias h='history'
-alias j='jobs'
-alias v='nvim'
-alias vim='nvim'
+# Git - Logs e diffs
+alias gl='git log --oneline --graph --decorate' # Log gráfico resumido
+alias gll='git log --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit'
+alias gd='git diff'                             # Diff de mudanças
+alias gds='git diff --staged'                   # Diff de arquivos staged
+alias gdc='git diff --cached'                   # Diff cached (staged)
 
-# Pacman & Yay
-alias pacup='sudo pacman -Syu'
-alias pacin='sudo pacman -S'
-alias pacrm='sudo pacman -Rns'
-alias yayup='yay -Syu'
-alias yayin='yay -S'
+# Git - Stash
+alias gst='git stash'                           # Stash de mudanças
+alias gstp='git stash pop'                      # Aplica último stash
+alias gstl='git stash list'                     # Lista stashes
+alias gstd='git stash drop'                     # Remove stash
 
-# Utilitários
-alias myip='curl ifconfig.me'
-alias ports='netstat -tulanp'
-alias df='df -h'
-alias du='du -h'
-alias free='free -h'
-alias grep='grep --color=auto'
+# Git - Reset e Clean
+alias grh='git reset HEAD'                      # Unstage arquivos
+alias grhh='git reset --hard HEAD'              # Reset hard para HEAD
+alias gclean='git clean -fd'                    # Remove arquivos não rastreados
+
+# Git - Remote
+alias gr='git remote'                           # Lista remotes
+alias grv='git remote -v'                       # Lista remotes verbose
+alias gra='git remote add'                      # Adiciona remote
+alias grrm='git remote remove'                  # Remove remote
+
+# Docker - Básico
+alias d='docker'                                # Atalho principal do docker
+alias dc='docker-compose'                       # Docker compose
+alias dps='docker ps'                           # Lista containers rodando
+alias dpsa='docker ps -a'                       # Lista todos os containers
+alias di='docker images'                        # Lista imagens
+alias dip='docker image prune -a'               # Remove imagens não usadas
+
+# Docker - Gerenciamento de containers
+alias drm='docker rm'                           # Remove container
+alias drma='docker rm $(docker ps -aq)'         # Remove todos os containers
+alias dstop='docker stop'                       # Para container
+alias dstopa='docker stop $(docker ps -q)'      # Para todos os containers
+alias dstart='docker start'                     # Inicia container
+alias drestart='docker restart'                 # Reinicia container
+
+# Docker - Imagens
+alias drmi='docker rmi'                         # Remove imagem
+alias drmia='docker rmi $(docker images -q)'    # Remove todas as imagens
+alias dpull='docker pull'                       # Pull de imagem
+alias dbuild='docker build'                     # Build de imagem
+
+# Docker - Execução e logs
+alias dex='docker exec -it'                     # Executa comando no container
+alias dlogs='docker logs -f'                    # Logs em tempo real
+alias dinspect='docker inspect'                 # Inspeciona container/imagem
+
+# Docker - Limpeza
+alias dprune='docker system prune -af'          # Remove tudo não usado
+alias dvprune='docker volume prune -f'          # Remove volumes não usados
+alias dnprune='docker network prune -f'         # Remove networks não usadas
+
+# Docker Compose
+alias dcu='docker-compose up'                   # Sobe serviços
+alias dcud='docker-compose up -d'               # Sobe serviços em background
+alias dcd='docker-compose down'                 # Para e remove containers
+alias dcl='docker-compose logs -f'              # Logs em tempo real
+alias dcps='docker-compose ps'                  # Lista serviços
+alias dcr='docker-compose restart'              # Reinicia serviços
+alias dcb='docker-compose build'                # Build dos serviços
+
+# Sistema - Navegação
+alias c='clear'                                 # Limpa terminal
+alias ..='cd ..'                                # Sobe um diretório
+alias ...='cd ../..'                            # Sobe dois diretórios
+alias ....='cd ../../..'                        # Sobe três diretórios
+alias .....='cd ../../../..'                    # Sobe quatro diretórios
+alias ~='cd ~'                                  # Vai para home
+alias -- -='cd -'                               # Volta para diretório anterior
+
+# Sistema - Histórico e processos
+alias h='history'                               # Histórico de comandos
+alias hg='history | grep'                       # Busca no histórico
+alias j='jobs'                                  # Lista jobs
+alias k='kill'                                  # Mata processo
+alias ka='killall'                              # Mata todos os processos
+
+# Sistema - Editor
+alias v='nvim'                                  # Abre neovim
+alias vim='nvim'                                # Vim aponta para neovim
+alias vi='nvim'                                 # Vi aponta para neovim
+alias nv='nvim'                                 # Atalho curto para neovim
+
+# Pacman & Yay - Atualização
+alias pacup='sudo pacman -Syu'                  # Atualiza sistema
+alias pacupg='sudo pacman -Syyu'                # Atualiza forçando refresh
+alias yayup='yay -Syu'                          # Atualiza sistema (com AUR)
+alias yayupg='yay -Syyu'                        # Atualiza forçando refresh (com AUR)
+
+# Pacman & Yay - Instalação
+alias pacin='sudo pacman -S'                    # Instala pacote
+alias yayin='yay -S'                            # Instala pacote (com AUR)
+alias pacins='sudo pacman -U'                   # Instala pacote local
+
+# Pacman & Yay - Remoção
+alias pacrm='sudo pacman -Rns'                  # Remove pacote e dependências
+alias pacrmo='sudo pacman -Rns $(pacman -Qtdq)' # Remove pacotes órfãos
+alias ylock='sudo rm /var/lib/pacman/db.lck'    # Remove lock do pacman
+
+# Pacman & Yay - Busca e informação
+alias pacsearch='pacman -Ss'                    # Busca pacote
+alias pacinfo='pacman -Si'                      # Info do pacote
+alias paclist='pacman -Qq'                      # Lista pacotes instalados
+alias pacown='pacman -Qo'                       # Mostra dono do arquivo
+
+# Utilitários - Rede
+alias myip='curl ifconfig.me'                   # Mostra IP público
+alias localip='ip addr show'                    # Mostra IPs locais
+alias ports='netstat -tulanp'                   # Mostra portas abertas
+alias listening='lsof -i -P | grep LISTEN'      # Mostra portas em listening
+alias ping='ping -c 5'                          # Ping com 5 pacotes
+alias fastping='ping -c 100 -i.2'               # Ping rápido
+
+# Utilitários - Sistema
+alias df='df -h'                                # Espaço em disco humanizado
+alias du='du -h'                                # Uso de disco humanizado
+alias dud='du -d 1 -h'                          # Uso de disco (1 nível)
+alias dus='du -sh'                              # Uso de disco (sumário)
+alias free='free -h'                            # Memória humanizada
+alias ps='ps aux'                               # Lista processos
+alias psg='ps aux | grep'                       # Busca processos
+
+# Utilitários - Arquivos
+alias grep='grep --color=auto'                  # Grep com cores
+alias egrep='egrep --color=auto'                # Egrep com cores
+alias fgrep='fgrep --color=auto'                # Fgrep com cores
+alias mkdir='mkdir -pv'                         # Mkdir com verbose
+alias wget='wget -c'                            # Wget com continue
+alias path='echo -e ${PATH//:/\\n}'             # Mostra PATH formatado
+
+# Utilitários - Tempo
+alias now='date +"%T"'                          # Hora atual
+alias nowdate='date +"%d-%m-%Y"'                # Data atual
+alias week='date +%V'                           # Número da semana
 
 # LazyGit
-alias lg='lazygit'
+alias lg='lazygit'                              # Abre lazygit
+
+# Atalhos personalizados
+alias reload='source ~/.zshrc'                  # Recarrega configuração
+alias zshconfig='nvim ~/.zshrc'                 # Edita .zshrc
+alias ohmyzsh='nvim ~/.oh-my-zsh'               # Edita oh-my-zsh
+
+# Função de ajuda para aliases
+alias aliases='show_aliases_help'
 
 EOF
         log_success "Aliases configurados!"
@@ -569,6 +928,9 @@ if [ "$EUID" -eq 0 ]; then
     log_error "Não execute este script como root!"
     exit 1
 fi
+
+# Instalar dependências necessárias
+install_dependencies
 
 # Instalar gum primeiro
 install_gum
